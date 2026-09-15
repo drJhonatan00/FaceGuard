@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#0b1020" />
+  <title>FaceGuard Pro</title>
+  <script defer src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.min.js"></script>
+  <style>
+    :root {
+      --bg: #070b16; --panel: rgba(17, 25, 48, .78);
+      --line: rgba(148, 163, 184, .16); --text: #eef2ff; --muted: #9aa7c4;
+      --accent: #7c5cff; --cyan: #41d9cf; --success: #35d49a; --danger: #ff647c;
+      --warning: #ffc857; --shadow: 0 16px 40px rgba(0,0,0,.4);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { min-height: 100vh; color: var(--text); font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: radial-gradient(circle at 10% 0%, #1c1b47 0, transparent 40%), radial-gradient(circle at 90% 10%, #123e52 0, transparent 35%), var(--bg); display: flex; flex-direction: column; justify-content: space-between; }
+    
+    .app { width: 100%; max-width: 1200px; margin: 0 auto; padding: 16px; flex: 1; display: flex; flex-direction: column; }
+    
+    header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+    .brand { display: flex; align-items: center; gap: 10px; }
+    .logo { width: 38px; height: 38px; display: grid; place-items: center; border-radius: 12px; background: linear-gradient(135deg, var(--accent), #31d4ca); box-shadow: 0 6px 20px rgba(124,92,255,.3); font-size: 18px; }
+    h1 { font-size: clamp(16px, 4vw, 20px); letter-spacing: -.02em; } 
+    .eyebrow { color: var(--muted); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; margin-top: 2px; }
+    
+    .live-pill { display: flex; align-items: center; gap: 8px; padding: 6px 12px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); font-size: 11px; background: rgba(255,255,255,.03); }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--warning); } 
+    .dot.ready { background: var(--success); box-shadow: 0 0 10px var(--success); }
+    
+    .layout { display: grid; grid-template-columns: 1fr; gap: 16px; flex: 1; align-items: start; }
+    @media (min-width: 900px) {
+      .layout { grid-template-columns: minmax(0, 1.4fr) minmax(320px, 0.8fr); gap: 24px; }
+    }
+
+    .card { background: var(--panel); border: 1px solid var(--line); border-radius: 20px; box-shadow: var(--shadow); backdrop-filter: blur(16px); width: 100%; overflow: hidden; }
+    
+    .camera-card { padding: 10px; display: flex; flex-direction: column; } 
+    .camera-wrap { position: relative; width: 100%; aspect-ratio: 4 / 3; overflow: hidden; border-radius: 14px; background: #04060d; }
+    @media (min-width: 600px) { .camera-wrap { aspect-ratio: 16 / 9; } }
+    
+    video, canvas { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; } 
+    video { opacity: 0; pointer-events: none; } 
+    canvas { z-index: 1; }
+    
+    .auth-progress-container { position: absolute; bottom: 0; left: 0; right: 0; height: 6px; background: rgba(255,255,255,.15); z-index: 4; }
+    .auth-progress-bar { height: 100%; width: 0%; background: linear-gradient(90deg, var(--accent), var(--cyan)); transition: width 0.1s linear; }
+    
+    .camera-overlay { position: absolute; z-index: 3; inset: 0; display: flex; align-items: flex-start; justify-content: space-between; padding: 12px; pointer-events: none; }
+    .badge { padding: 6px 10px; border-radius: 8px; background: rgba(4,6,13,.7); border: 1px solid rgba(255,255,255,.12); font-size: 10px; color: #dce7ff; backdrop-filter: blur(8px); }
+    
+    .camera-footer { display: flex; justify-content: space-between; gap: 10px; align-items: center; padding: 12px 6px 4px; flex-wrap: wrap; } 
+    .camera-title { font-size: 13px; font-weight: 700; } 
+    .camera-sub { color: var(--muted); font-size: 11px; margin-top: 2px; }
+    
+    .side { padding: 18px; display: flex; flex-direction: column; gap: 14px; } 
+    .side h2 { font-size: 18px; letter-spacing: -.02em; } 
+    .side-intro { color: var(--muted); line-height: 1.4; font-size: 12px; }
+    
+    .status { padding: 12px; border-radius: 12px; border: 1px solid rgba(255,200,87,.22); background: rgba(255,200,87,.08); color: #ffe7a1; font-size: 12px; line-height: 1.4; word-break: break-word; } 
+    .status.success { border-color: rgba(53,212,154,.28); background: rgba(53,212,154,.09); color: #a8f4d5; } 
+    .status.error { border-color: rgba(255,100,124,.28); background: rgba(255,100,124,.09); color: #ffc1ca; }
+    
+    .user-input-group { display: flex; gap: 8px; width: 100%; }
+    input[type="text"] { flex: 1; min-width: 0; background: rgba(0,0,0,.3); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; color: var(--text); font-size: 13px; outline: none; }
+    input[type="text"]:focus { border-color: var(--accent); }
+    
+    .users-list { max-height: 140px; overflow-y: auto; border: 1px solid var(--line); border-radius: 10px; padding: 6px; background: rgba(0,0,0,.2); }
+    .user-item { display: flex; justify-content: space-between; align-items: center; padding: 8px; font-size: 12px; border-bottom: 1px solid rgba(255,255,255,.05); }
+    .user-item:last-child { border-bottom: none; }
+    
+    button { width: 100%; border: 0; border-radius: 10px; padding: 12px; cursor: pointer; color: white; font-weight: 700; background: linear-gradient(135deg, var(--accent), #5b44d8); font-size: 13px; touch-action: manipulation; } 
+    button.secondary { color: #d8def1; background: rgba(255,255,255,.06); border: 1px solid var(--line); } 
+    button:disabled { opacity: .45; cursor: not-allowed; }
+
+    .dashboard-screen { display: none; text-align: center; padding: 40px 16px; margin: auto 0; }
+    .dashboard-screen h2 { font-size: clamp(22px, 5vw, 30px); color: var(--success); margin-bottom: 8px; }
+    .dashboard-screen p { color: var(--muted); font-size: 14px; margin-bottom: 24px; }
+    
+    footer { text-align: center; color: #687491; font-size: 10px; padding: 16px 0; }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header>
+      <div class="brand">
+        <div class="logo">◉</div>
+        <div>
+          <h1>FaceGuard Pro</h1>
+          <div class="eyebrow">Biometric Authentication</div>
+        </div>
+      </div>
+      <div class="live-pill">
+        <span class="dot" id="liveDot"></span>
+        <span id="connectionText">Initialising AI</span>
+      </div>
+    </header>
+
+    <section class="layout" id="authLayout">
+      <div class="card camera-card">
+        <div class="camera-wrap" id="cameraWrap">
+          <video id="video" autoplay muted playsinline></video>
+          <canvas id="canvas"></canvas>
+          <div class="camera-overlay">
+            <span class="badge">● LIVE FEED</span>
+            <span class="badge" id="authTimerBadge">HOLD POSITION: 3s</span>
+          </div>
+          <div class="auth-progress-container">
+            <div class="auth-progress-bar" id="progressBar"></div>
+          </div>
+        </div>
+        <div class="camera-footer">
+          <div>
+            <div class="camera-title">Biometric Validation</div>
+            <div class="camera-sub" id="cameraHint">Look into the camera for 3 seconds to authenticate.</div>
+          </div>
+          <div class="badge" id="modelBadge">AI offline</div>
+        </div>
+      </div>
+
+      <aside class="card side">
+        <h2>Access Management</h2>
+        <p class="side-intro">Register authorised identities. Feature vectors are saved via PHP to the server user.txt file.</p>
+        
+        <div class="status" id="status">Connecting to server…</div>
+
+        <div class="user-input-group">
+          <input type="text" id="userNameInput" placeholder="User Full Name" />
+          <button id="addFaceBtn" style="width: auto; min-width: 90px;" disabled>Register</button>
+        </div>
+
+        <div class="users-list" id="usersList">
+          <div class="user-item" style="color: var(--muted)">Loading users from server...</div>
+        </div>
+
+        <button id="clearUsersBtn" class="secondary">Purge Records on Server</button>
+      </aside>
+    </section>
+
+    <section class="card dashboard-screen" id="dashboardScreen">
+      <h2>Access Authorised!</h2>
+      <p id="welcomeMessage">Welcome to the secure dashboard.</p>
+      <button id="logoutBtn" style="max-width: 220px; margin: 0 auto;">Sign Out</button>
+    </section>
+  </main>
+
+  <footer>FaceGuard · Developed by <a href="https://github.com/drJhonatan00" style="color: white; text-decoration: none">drJhonatan00</a></footer>
+
+  <script>
+    const video = document.getElementById('video'), canvas = document.getElementById('canvas'), ctx = canvas.getContext('2d');
+    const statusEl = document.getElementById('status'), progressBar = document.getElementById('progressBar');
+    const authLayout = document.getElementById('authLayout'), dashboardScreen = document.getElementById('dashboardScreen');
+    const welcomeMessage = document.getElementById('welcomeMessage'), usersListEl = document.getElementById('usersList');
+    const userNameInput = document.getElementById('userNameInput'), addFaceBtn = document.getElementById('addFaceBtn');
+    const modelBadge = document.getElementById('modelBadge'), liveDot = document.getElementById('liveDot'), connectionText = document.getElementById('connectionText');
+    const authTimerBadge = document.getElementById('authTimerBadge');
+
+    let authorizedUsers = []; 
+    let detections = [], stream = null, busy = false;
+    let validFaceStartTime = null;
+    const REQUIRED_HOLD_TIME = 3000; 
+
+    const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model';
+    const options = () => new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.55 });
+
+    // --- PHP API COMMUNICATION MODULE ---
+    async function loadUsersFromDB() {
+      try {
+        const res = await fetch('api.php');
+        const data = await res.json();
+        
+        authorizedUsers = data.map(u => ({
+          name: u.name,
+          descriptor: new Float32Array(u.descriptor)
+        }));
+        
+        updateUsersList();
+      } catch (e) {
+        console.error('Error fetching data from server:', e);
+        setStatus('Failed to load database from server.', 'error');
+      }
+    }
+
+    async function saveUserToDB(name, descriptor) {
+      const response = await fetch('api.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: name,
+          descriptor: Array.from(descriptor)
+        })
+      });
+      return await response.json();
+    }
+
+    async function clearUsersDB() {
+      await fetch('api.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'clear' })
+      });
+      authorizedUsers = [];
+      updateUsersList();
+    }
+    // --- END PHP API COMMUNICATION ---
+
+    function setStatus(text, type = '') { statusEl.textContent = text; statusEl.className = 'status ' + type; }
+    function setCanvasSize() { if (video.videoWidth) { canvas.width = video.videoWidth; canvas.height = video.videoHeight; } }
+
+    async function loadModels() {
+      setStatus('Loading neural network models…');
+      await Promise.all([
+        faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+        faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+        faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
+      ]);
+      modelBadge.textContent = 'AI Online';
+    }
+
+    async function startCamera() {
+      if (stream) stream.getTracks().forEach(track => track.stop());
+      stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' }, audio: false });
+      video.srcObject = stream;
+      await video.play();
+      setCanvasSize();
+      liveDot.classList.add('ready');
+      connectionText.textContent = 'System online';
+      setStatus('Position face for 3s to authenticate or register new users.');
+      addFaceBtn.disabled = false;
+      requestAnimationFrame(render);
+      detectLoop();
+    }
+
+    function render() {
+      if (video.readyState >= 2 && authLayout.style.display !== 'none') {
+        setCanvasSize();
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        
+        detections.forEach(({ detection, match }) => {
+          const box = detection.box;
+          const ok = match && match.distance <= 0.55;
+          
+          if (!ok) pixelate(box);
+
+          ctx.strokeStyle = ok ? '#35d49a' : '#ff647c';
+          ctx.lineWidth = Math.max(2, Math.round(canvas.width / 400));
+          ctx.strokeRect(box.x, box.y, box.width, box.height);
+          ctx.fillStyle = ok ? '#35d49a' : '#ff647c';
+          ctx.font = `bold ${Math.max(12, Math.round(canvas.width / 50))}px system-ui`;
+          ctx.fillText(ok ? match.name.toUpperCase() : 'BLOCKED', box.x + 6, Math.max(16, box.y - 6));
+        });
+      }
+      requestAnimationFrame(render);
+    }
+
+    function pixelate(box) {
+      const x = Math.max(0, box.x), y = Math.max(0, box.y);
+      const w = Math.min(canvas.width - x, box.width), h = Math.min(canvas.height - y, box.height);
+      if (w <= 0 || h <= 0) return;
+      const size = 16, sw = Math.max(1, Math.ceil(w / size)), sh = Math.max(1, Math.ceil(h / size));
+      const temp = document.createElement('canvas'); temp.width = sw; temp.height = sh;
+      const t = temp.getContext('2d');
+      t.imageSmoothingEnabled = false; t.drawImage(video, x, y, w, h, 0, 0, sw, sh);
+      ctx.imageSmoothingEnabled = false; ctx.drawImage(temp, 0, 0, sw, sh, x, y, w, h);
+      ctx.imageSmoothingEnabled = true;
+    }
+
+    function findBestMatch(descriptor) {
+      if (!authorizedUsers.length) return null;
+      let bestMatch = null, minDistance = 1.0;
+      authorizedUsers.forEach(user => {
+        const distance = faceapi.euclideanDistance(user.descriptor, descriptor);
+        if (distance < minDistance) { minDistance = distance; bestMatch = { name: user.name, distance }; }
+      });
+      return bestMatch;
+    }
+
+    async function detectLoop() {
+      if (busy || video.paused || authLayout.style.display === 'none') {
+        setTimeout(detectLoop, 150);
+        return;
+      }
+      busy = true;
+
+      try {
+        const allDetections = await faceapi.detectAllFaces(video, options()).withFaceLandmarks().withFaceDescriptors();
+        detections = allDetections.map(det => ({ detection: det.detection, descriptor: det.descriptor, match: findBestMatch(det.descriptor) }));
+
+        const validMatch = detections.find(d => d.match && d.match.distance <= 0.55);
+
+        if (validMatch) {
+          const now = Date.now();
+          if (!validFaceStartTime) validFaceStartTime = now;
+          const elapsedTime = now - validFaceStartTime;
+          const progress = Math.min(100, (elapsedTime / REQUIRED_HOLD_TIME) * 100);
+          progressBar.style.width = progress + '%';
+          authTimerBadge.textContent = `AUTHENTICATING: ${(3 - (elapsedTime / 1000)).toFixed(1)}s`;
+
+          if (elapsedTime >= REQUIRED_HOLD_TIME) triggerSuccessLogin(validMatch.match.name);
+        } else {
+          validFaceStartTime = null;
+          progressBar.style.width = '0%';
+          authTimerBadge.textContent = 'HOLD POSITION: 3s';
+        }
+      } catch (e) { console.error(e); } 
+      finally { busy = false; setTimeout(detectLoop, 150); }
+    }
+
+    async function registerCurrentFace() {
+      const name = userNameInput.value.trim();
+      if (!name) return alert('Please enter a name!');
+
+      setStatus('Registering face…');
+      const single = await faceapi.detectSingleFace(video, options()).withFaceLandmarks().withFaceDescriptor();
+
+      if (single) {
+        await saveUserToDB(name, single.descriptor);
+        authorizedUsers.push({ name, descriptor: single.descriptor });
+        userNameInput.value = '';
+        updateUsersList();
+        setStatus(`"${name}" successfully saved to server in user.txt!`, 'success');
+      } else setStatus('No clear face detected.', 'error');
+    }
+
+    function updateUsersList() {
+      usersListEl.innerHTML = authorizedUsers.length 
+        ? authorizedUsers.map(u => `<div class="user-item"><span>👤 ${u.name}</span><span style="color:var(--success)">On Server</span></div>`).join('')
+        : '<div class="user-item" style="color: var(--muted)">No registered users.</div>';
+    }
+
+    function triggerSuccessLogin(name) {
+      authLayout.style.display = 'none';
+      dashboardScreen.style.display = 'block';
+      welcomeMessage.textContent = `Hello, ${name}! Your access has been authorised.`;
+    }
+
+    function logout() {
+      dashboardScreen.style.display = 'none';
+      authLayout.style.display = 'grid';
+      validFaceStartTime = null;
+      progressBar.style.width = '0%';
+      setStatus('Session ended.');
+      detectLoop();
+    }
+
+    addFaceBtn.addEventListener('click', registerCurrentFace);
+    document.getElementById('clearUsersBtn').addEventListener('click', async () => { 
+      await clearUsersDB(); 
+      setStatus('Server database (user.txt) purged successfully.'); 
+    });
+    document.getElementById('logoutBtn').addEventListener('click', logout);
+    window.addEventListener('resize', setCanvasSize);
+    
+    document.addEventListener('DOMContentLoaded', async () => { 
+      await loadUsersFromDB();
+      await loadModels(); 
+      await startCamera(); 
+    });
+  </script>
+</body>
+</html>
