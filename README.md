@@ -29,5 +29,4 @@ A lightweight, real-time biometric authentication system powered by client-side 
    php -S localhost:8000
 3. Open http://localhost:8000 in your browser and grant webcam permissions.
 
-## License
-MIT License
+<!-- Watashi wa watashi sore dake -->
